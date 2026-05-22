@@ -31,6 +31,7 @@ from pathlib import Path
 
 import laspy
 import numpy as np
+import pyproj
 from osgeo import gdal, osr
 from scipy.spatial import cKDTree
 
@@ -49,8 +50,109 @@ GROUND_KNN: int = 3
 
 #10 query chunks so the on_progress callback can tick the bar
 #through the KDTree pass instead of jumping from 25 % to 75 % when
-#one giant scipy call returns.
+#one giant scipy call returns. Reused for the reprojection pass
+#below for the same reason: 12 M points through pyproj is ~ 10 s of
+#wall-clock and the user wants to see the bar move.
 QUERY_CHUNKS: int = 10
+
+
+#Tolerance for "is this CRS already in metres?" against the
+#unit-conversion factor pyproj exposes. PROJ stores the metre
+#exactly, but a couple of EPSG entries round-trip through 1.0 + tiny
+#float noise; 1e-9 is comfortably under any real foot / chain / link
+#unit factor we'd ever see, so the test stays robust.
+_METRE_FACTOR_TOL: float = 1e-9
+
+
+def _horizontal_part(crs: pyproj.CRS) -> pyproj.CRS:
+    """Return the planar CRS that carries the (x, y) coordinates.
+
+    A compound CRS (`COMPD_CS` in WKT, common in US LiDAR products
+    that bundle a projected horizontal datum with NAVD88 heights)
+    keeps the horizontal piece at index 0 of `sub_crs_list`. Other
+    CRSes are themselves the horizontal piece.
+    """
+    if crs.is_compound:
+        return crs.sub_crs_list[0]
+    return crs
+
+
+def _vertical_unit_factor(crs: pyproj.CRS) -> float:
+    """Multiplier that takes the LAZ's Z values into metres.
+
+    Compound CRSes carry an explicit vertical sub-CRS, so we read
+    its unit factor (e.g. NAVD88 height in US survey feet returns
+    0.3048006096012192). When the source is a plain projected CRS,
+    LAZ files conventionally store Z in the same linear unit as the
+    horizontal axes, so the horizontal factor doubles as the vertical
+    one. Geographic sources have no linear unit on the projected
+    axes; the LAZ spec then expects Z in metres, so we return 1.0.
+    """
+    if crs.is_compound:
+        vert = crs.sub_crs_list[1]
+        return float(vert.axis_info[0].unit_conversion_factor)
+    if crs.is_projected:
+        return float(crs.axis_info[0].unit_conversion_factor)
+    return 1.0
+
+
+def _utm_epsg_for(lon: float, lat: float) -> int:
+    """Pick the WGS84 UTM zone (EPSG 326XX / 327XX) covering the
+    given lon / lat. The pipeline reprojects non-metric inputs into
+    this zone so the rasterised nDSM ships in true metres regardless
+    of the source unit. UTM zones are 6 degrees wide; the formula
+    matches the standard "longitude + 180, divide by 6, add 1"
+    convention. Polar latitudes (> 84 or < -80) fall outside UTM
+    proper; we still return a UTM zone there since nobody is
+    flying residential LiDAR at the poles.
+    """
+    zone = int((lon + 180.0) // 6.0) + 1
+    zone = max(1, min(60, zone))
+    return (32600 if lat >= 0.0 else 32700) + zone
+
+
+def _select_target_crs(
+    src_crs: pyproj.CRS, x_arr: np.ndarray, y_arr: np.ndarray,
+) -> tuple[pyproj.CRS, bool]:
+    """Choose the working CRS for rasterisation.
+
+    Pass-through path: the source horizontal CRS is a projected CRS
+    whose linear unit is already the metre. The pipeline keeps that
+    CRS as-is so French Lambert-93, UTM tiles, ETRS89-LAEA and the
+    rest of the metric national grids ship through with zero
+    coordinate change.
+
+    Reprojection path: anything else (US survey foot, international
+    foot, geographic lat / lon, anything PROJ exposes a non-metre
+    factor for) gets reprojected into the UTM zone covering the data
+    centre. UTM is a universally available metric CRS and the
+    distortion across a single ~ 1 km LiDAR tile is well below the
+    pipeline's 1 m raster pitch, so picking the local zone keeps the
+    nDSM geometrically faithful without any per-source calibration.
+
+    The function returns the target CRS plus a flag that tells the
+    caller whether to actually run the transform; the pass-through
+    case skips an expensive numpy + pyproj pass over the whole point
+    cloud.
+    """
+    horiz = _horizontal_part(src_crs)
+
+    if horiz.is_projected:
+        factor = float(horiz.axis_info[0].unit_conversion_factor)
+        if abs(factor - 1.0) <= _METRE_FACTOR_TOL:
+            return horiz, False
+
+    #Pick the UTM zone from the data centre, reprojected from the
+    #source horizontal CRS into geographic WGS84. Mean of the raw
+    #coordinates is a fine approximation of the tile centre for any
+    #LiDAR tile we'll realistically see.
+    geo = pyproj.CRS.from_epsg(4326)
+    to_geo = pyproj.Transformer.from_crs(horiz, geo, always_xy=True)
+    cx = float(x_arr.mean())
+    cy = float(y_arr.mean())
+    center_lon, center_lat = to_geo.transform(cx, cy)
+    target_epsg = _utm_epsg_for(center_lon, center_lat)
+    return pyproj.CRS.from_epsg(target_epsg), True
 
 
 def rasterise(
@@ -98,6 +200,38 @@ def rasterise(
 
     if x.size == 0:
         raise ValidationError("The LAS / LAZ file contains no points.")
+
+    #Bring the point cloud into a metric working CRS before we touch
+    #anything spatial. Sources already in metres (Lambert-93, UTM,
+    #ETRS89-LAEA, etc.) skip the transform entirely; sources in US
+    #survey feet, international feet, or geographic lat / lon get
+    #reprojected into the local UTM zone so the 1 m raster pitch
+    #downstream is honestly 1 m and Helios's ray-march reads the
+    #correct cell size from the COG geotransform.
+    target_crs, needs_reproject = _select_target_crs(crs, x, y)
+    if needs_reproject:
+        src_horiz = _horizontal_part(crs)
+        report("reprojecting", 0.0)
+        transformer = pyproj.Transformer.from_crs(src_horiz, target_crs, always_xy=True)
+        #Chunked so the progress bar moves through the transform.
+        #pyproj returns new arrays per call; we overwrite the
+        #already-read indices in-place so peak memory stays at the
+        #point cloud's own footprint.
+        chunk_size = max(1, x.size // QUERY_CHUNKS)
+        for start in range(0, x.size, chunk_size):
+            end = min(start + chunk_size, x.size)
+            cx, cy = transformer.transform(x[start:end], y[start:end])
+            x[start:end] = cx
+            y[start:end] = cy
+            report("reprojecting", end / x.size)
+
+    #Z conversion: the source vertical CRS dictates the factor.
+    #Compound CRSes (e.g. NAVD88 height in ftUS) expose it directly;
+    #single-CRS sources reuse the horizontal factor since LAZ stores
+    #Z in the same linear unit as the projected axes by convention.
+    z_factor = _vertical_unit_factor(crs)
+    if abs(z_factor - 1.0) > _METRE_FACTOR_TOL:
+        z *= z_factor
 
     ground_mask = classification == GROUND_CLASS
     ground_count = int(ground_mask.sum())
@@ -187,8 +321,14 @@ def rasterise(
     #because rows scan top to bottom.
     out_ds.SetGeoTransform((min_x_snap, pixel_meters, 0.0, max_y_snap, 0.0, -pixel_meters))
 
+    #The output COG is tagged with the working (metric) CRS, not the
+    #original source. For sources that were already in metres these
+    #are the same CRS; for ftUS / lat-lon sources this is the UTM
+    #zone we reprojected into. Either way, gt[1] now matches the
+    #cell size in metres, which is what the Helios card expects when
+    #it ray-marches the nDSM for LiDAR shading.
     srs = osr.SpatialReference()
-    srs.ImportFromWkt(crs.to_wkt())
+    srs.ImportFromWkt(target_crs.to_wkt())
     out_ds.SetProjection(srs.ExportToWkt())
 
     band = out_ds.GetRasterBand(1)

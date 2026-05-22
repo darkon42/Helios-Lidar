@@ -54,7 +54,7 @@ app = FastAPI(
     ),
     #Locked to the Helios card version so the two projects ship in
     #lock-step; bump both at once when releasing a paired feature.
-    version="1.6.2",
+    version="1.6.3",
 )
 
 #Frontend directory: rsync target on the VPS is /var/helios-lidar/frontend,
@@ -284,14 +284,16 @@ def _process(job_id: str) -> None:
             #drives the bar inside its slice. Saving on every call
             #would hammer the disk, throttle to ~ once a second.
             phase_band = {
-                "reading":      (25, 35),
-                "kdtree":       (35, 40),
-                "querying":     (40, 70),
+                "reading":      (25, 33),
+                "reprojecting": (33, 40),
+                "kdtree":       (40, 43),
+                "querying":     (43, 70),
                 "rasterising":  (70, 73),
                 "writing":      (73, 75),
             }
             phase_msg = {
                 "reading":      "Reading points",
+                "reprojecting": "Reprojecting to metres",
                 "kdtree":       "Building ground KDTree",
                 "querying":     "Computing height-above-ground",
                 "rasterising":  "Building the nDSM raster",

@@ -7,7 +7,7 @@ name = "helios-lidar"
 #Kept in lock-step with the Helios card version on purpose: the two
 #projects ship companion features and a shared number makes it
 #trivial to tell users which site/card pair they're on.
-version = "1.6.2"
+version = "1.6.3"
 description = "Web pipeline that turns user-uploaded LiDAR data into nDSM Cloud-Optimized GeoTIFFs for the Helios Home Assistant card."
 readme = "README.md"
 requires-python = ">=3.11"
