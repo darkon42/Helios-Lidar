@@ -1,0 +1,37 @@
+"""Render the ready-to-paste YAML block for the Helios card's
+`lidar-local-ndsm-*` provider keys.
+
+The URL we hand back deliberately points at Home Assistant's
+`/local/` namespace (which maps to `config/www/` on the HA host),
+NOT the helios-lidar.org VPS. The COG file itself lives transiently
+on the VPS only for a few minutes after the job finishes; the
+browser auto-downloads it, the user drops it under
+`config/www/helios/`, and the snippet then resolves to that local
+copy through HA's own web server. This keeps the VPS from
+accumulating per-user output files and keeps the Helios card
+working even when helios-lidar.org is down or moves elsewhere.
+"""
+
+from __future__ import annotations
+
+
+def render(
+    filename: str,
+    bounds_wgs84: tuple[float, float, float, float],
+) -> str:
+    """Build the snippet. `filename` is the on-disk name the browser
+    download saves to; the snippet's URL resolves to that file once
+    the user has dropped it under `config/www/helios/`.
+    """
+    min_lon, min_lat, max_lon, max_lat = bounds_wgs84
+    return (
+        f"# Save the downloaded {filename} under your Home Assistant\n"
+        f"# config/www/helios/ folder; the URL below resolves to that\n"
+        f"# path through HA's built-in /local/ web server.\n"
+        f"lidar-local-ndsm-enabled: true\n"
+        f"lidar-local-ndsm-url: /local/helios/{filename}\n"
+        f"lidar-local-ndsm-min-lat: {min_lat:.6f}\n"
+        f"lidar-local-ndsm-max-lat: {max_lat:.6f}\n"
+        f"lidar-local-ndsm-min-lon: {min_lon:.6f}\n"
+        f"lidar-local-ndsm-max-lon: {max_lon:.6f}\n"
+    )

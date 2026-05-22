@@ -1,0 +1,1460 @@
+/*  Helios-Lidar upload UI styling. Visually echoes the Helios card
+    palette (dark surface, sun-orange accents, monospaced data) so
+    the two pages read as part of the same family without sharing a
+    framework.                                                       */
+
+:root
+{
+    /*  Palette aligned 1:1 with Helios's dark theme so the
+        helios-lidar.org site reads as part of the same product
+        family. Card background + text + border numbers match
+        ha-card.theme-dark .dash-card in src/css/helios-card-css.ts.
+        Sun-orange accent matches DEFAULT_SUN_COLOR_HEX = #f5a623.    */
+    --bg:           #0b0d10;
+    --surface:      #191a1b;
+    --surface-2:    #21242a;
+    --ink:          #e6e6e6;
+    --ink-soft:     #9ba0a6;
+    --accent:       #f5a623;
+    --accent-soft:  #ffd180;
+    --success:      #22c55e;
+    --danger:       #ef4444;
+    --border:       rgba(255, 255, 255, 0.20);
+    --border-soft:  rgba(255, 255, 255, 0.08);
+    --code-bg:      #0a0c0e;
+}
+
+*
+{
+    box-sizing: border-box;
+}
+
+html, body
+{
+    margin: 0;
+    padding: 0;
+}
+
+/*  Html provides the canvas fallback background so the page is
+    never blank if the WebGL background canvas fails to mount. The
+    body is left transparent so the fixed pointcloud canvas at
+    z-index -1 shows through.                                      */
+html
+{
+    background: var(--bg);
+}
+
+body
+{
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--ink);
+    background: transparent;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+main
+{
+    flex: 1;
+    max-width: 860px;
+    width: 100%;
+    margin: 0 auto;
+    /*  No top padding because the full-width brand banner inside the
+        header sits flush against the (also full-width) sticky lang
+        strip above; side + bottom padding gates the inner content   */
+    padding: 0 24px 24px;
+}
+
+header
+{
+    margin-bottom: 32px;
+    text-align: center;
+}
+
+header .lede
+{
+    text-align: center;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+header h1
+{
+    text-align: center;
+}
+
+/*  Full-viewport-width banner holding the centred Helios icon. The
+    ambient sun animation runs across this whole strip so the icon
+    sits visually inside a slow sunrise-to-sunset wash. Escapes the
+    centred main column via the 100vw negative-margin trick.        */
+/*  Icon banner: locked to a 132 px container so the icon can grow
+    without making the banner taller. Height is fixed, the icon
+    fills the full content height via height: 100% + width auto.
+    At the icon's 2:1 ratio that gives 264 x 132, the biggest size
+    achievable without changing the banner height.                  */
+.brand-banner
+{
+    width: 100vw;
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+    height: 132px;
+    padding: 0 24px;
+    background-color: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+    isolation: isolate;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.brand-icon
+{
+    position: relative;
+    z-index: 1;
+    height: 100%;
+    width: auto;
+    max-width: 100%;
+    display: block;
+}
+
+/*  Top strip: flags right-aligned on a light background, full
+    viewport width. Sits above the icon, gives the language switcher
+    a place of its own so it never collides with the tagline.       */
+/*  Lang strip lives outside <main> as a direct body child so it can
+    span the full viewport width naturally (no negative-margin hack)
+    and stick to the top on scroll. Light, near-white background to
+    keep the navigation row visually distinct from the dark scene
+    underneath; foreground colours are overridden locally so the
+    chip + flags read on the lighter surface.                       */
+.lang-strip
+{
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    width: 100%;
+    padding: 8px 24px;
+    background-color: #f4f5f7;
+    border-bottom: 1px solid #d8dadd;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    box-sizing: border-box;
+}
+
+.site-version
+{
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    color: #51565d;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+/*  Ambient LiDAR pointcloud + wireframe rendered by bg-pointcloud.js
+    behind every other layer. Fixed full viewport with z-index -1 so
+    content scrolls on top. pointer-events disabled so clicks always
+    pass through. Background colour matches the canvas clear colour
+    in case the JS doesn't run (e.g. WebGL not available).            */
+.bg-pointcloud
+{
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    pointer-events: none;
+    display: block;
+    background-color: var(--bg);
+}
+
+/*  Centred tagline strip sitting just under the icon banner. Plain
+    background, no animation; the brand-banner above is where the
+    ambient sun cycle plays now.                                    */
+.brand-strip
+{
+    width: 100vw;
+    position: relative;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+    margin-bottom: 24px;
+    padding: 10px 24px;
+    background-color: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    color: var(--ink-soft);
+    font-size: 12px;
+    letter-spacing: 0.4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+/*  Ambient sun lighting effect: a translucent layer that cycles
+    colours from deep night through dawn, noon, sunset and back to
+    midnight, over a 60-second loop. Sits at z-index 0 so foreground
+    content (icon, footer links) reads on top. Shared by the icon
+    banner and the footer bookend.                                  */
+.brand-banner::before,
+.footer-glow::before
+{
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    animation: ambient-sun-cycle 60s ease-in-out infinite;
+    background-color: rgba(20, 30, 50, 0.30);
+}
+
+@keyframes ambient-sun-cycle
+{
+    /*  0 s = midnight, 15 s = sunrise, 30 s = noon, 45 s = sunset  */
+    0%   { background-color: rgba( 20,  30,  55, 0.35); }  /* deep night */
+    8%   { background-color: rgba( 50,  35,  75, 0.30); }  /* late night, purple cast */
+    16%  { background-color: rgba(140,  55,  70, 0.25); }  /* dawn pink */
+    24%  { background-color: rgba(220, 130,  60, 0.22); }  /* sunrise orange */
+    34%  { background-color: rgba(245, 195, 110, 0.18); }  /* morning warm */
+    50%  { background-color: rgba(245, 220, 160, 0.15); }  /* noon, bright but soft */
+    66%  { background-color: rgba(240, 180, 105, 0.20); }  /* afternoon golden */
+    76%  { background-color: rgba(200,  80,  60, 0.28); }  /* sunset red */
+    84%  { background-color: rgba( 90,  45,  90, 0.30); }  /* dusk purple */
+    92%  { background-color: rgba( 35,  35,  65, 0.33); }  /* night blue */
+    100% { background-color: rgba( 20,  30,  55, 0.35); }  /* loop back to midnight */
+}
+
+.brand-strip-text
+{
+    text-align: center;
+}
+
+.brand-strip a
+{
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.lang-switcher
+{
+    display: flex;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.lang-flag
+{
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 2px 5px;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.55;
+    transition: opacity 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.lang-flag:hover
+{
+    opacity: 1;
+    background: rgba(0, 0, 0, 0.06);
+}
+
+.lang-flag.active
+{
+    opacity: 1;
+    border-color: var(--accent);
+    background: rgba(245, 166, 35, 0.15);
+}
+
+h1
+{
+    font-size: 32px;
+    margin: 0 0 8px;
+    letter-spacing: -0.5px;
+    color: var(--accent);
+}
+
+h2
+{
+    font-size: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin: 0 0 16px;
+    color: var(--ink-soft);
+}
+
+.lede
+{
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 15px;
+}
+
+a
+{
+    color: var(--accent);
+    text-decoration: none;
+}
+
+a:hover
+{
+    text-decoration: underline;
+}
+
+.card
+{
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    margin-bottom: 16px;
+}
+
+.card.hidden
+{
+    display: none;
+}
+
+.card.explainer
+{
+    background: transparent;
+    border: 1px dashed var(--border);
+}
+
+.card.explainer ol
+{
+    padding-left: 22px;
+    margin: 0 0 12px;
+}
+
+.card.explainer li
+{
+    margin: 6px 0;
+    color: var(--ink-soft);
+}
+
+.card.explainer .note
+{
+    font-style: italic;
+    color: var(--ink-soft);
+    margin: 0;
+}
+
+.card.explainer p
+{
+    color: var(--ink-soft);
+    margin: 8px 0;
+}
+
+.card.explainer .credits
+{
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-soft);
+    font-size: 12px;
+}
+
+/*  Mode toggle (raster pair vs LAZ point cloud)                      */
+
+.mode-tabs
+{
+    display: flex;
+    gap: 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px;
+    margin-bottom: 20px;
+}
+
+.mode-tab
+{
+    flex: 1;
+    background: transparent;
+    color: var(--ink-soft);
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    border-radius: 999px;
+    transition: background 0.18s, color 0.18s, box-shadow 0.18s;
+}
+
+.mode-tab:hover
+{
+    color: var(--ink);
+}
+
+.mode-tab.active
+{
+    background: var(--accent);
+    color: #1a1209;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(245, 166, 35, 0.4);
+}
+
+.mode-panel
+{
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.mode-panel.hidden
+{
+    display: none;
+}
+
+/*  Form                                                              */
+
+form
+{
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.file-field
+{
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-2);
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+
+.file-field:hover
+{
+    border-color: var(--accent);
+}
+
+.file-label
+{
+    font-weight: 600;
+    color: var(--ink);
+}
+
+.file-hint
+{
+    font-size: 12px;
+    color: var(--ink-soft);
+}
+
+/*  Hide the native <input type="file"> chrome (which renders an OS-
+    specific "Choose File" button with a file icon next to a generic
+    label) and replace it with our own .file-button + .file-selected
+    pair. The input stays in the layout via the visually-hidden
+    pattern (1x1 px, no display:none) so screen readers + form
+    submission behave like a normal native input across every modern
+    browser (Chrome, Firefox, Safari, Edge).                         */
+.file-input-hidden
+{
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.file-picker-row
+{
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.file-button
+{
+    display: inline-block;
+    padding: 8px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.file-field:hover .file-button
+{
+    background: var(--surface-2);
+    border-color: var(--accent);
+}
+
+.file-input-hidden:focus + * .file-button,
+.file-input-hidden:focus-visible ~ .file-picker-row .file-button
+{
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.file-selected
+{
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    word-break: break-all;
+    flex: 1;
+    min-width: 0;
+}
+
+/*  Centre the action buttons (Process, Download, Copy) in their
+    parent .action-row container.                                    */
+.action-row
+{
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+}
+
+/*  Glossary <dl> styling for the help block.                        */
+.glossary
+{
+    margin: 0;
+    padding: 0;
+}
+
+.glossary dt
+{
+    color: var(--ink);
+    font-weight: 600;
+    font-size: 13px;
+    margin-top: 16px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.glossary dt:first-child
+{
+    margin-top: 0;
+}
+
+.glossary dd
+{
+    margin: 6px 0 12px;
+    color: var(--ink-soft);
+    line-height: 1.6;
+}
+
+.glossary dd strong
+{
+    color: var(--accent);
+    font-weight: 600;
+}
+
+button
+{
+    cursor: pointer;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 16px;
+    font: inherit;
+    font-weight: 600;
+}
+
+#submit-button
+{
+    background: var(--accent);
+    color: #1a1209;
+    font-size: 15px;
+    padding: 12px 18px;
+    align-self: flex-start;
+}
+
+#submit-button:hover
+{
+    background: var(--accent-soft);
+}
+
+#submit-button:disabled
+{
+    background: var(--surface-2);
+    color: var(--ink-soft);
+    cursor: not-allowed;
+}
+
+.secondary-button
+{
+    background: var(--surface-2);
+    color: var(--ink);
+    border: 1px solid var(--border);
+}
+
+.secondary-button:hover
+{
+    border-color: var(--accent);
+}
+
+.primary-button
+{
+    background: var(--accent);
+    color: #1a1209;
+    padding: 10px 18px;
+    font-size: 14px;
+    border: none;
+}
+
+.primary-button:hover
+{
+    background: var(--accent-soft);
+}
+
+.primary-button:disabled
+{
+    background: var(--surface-2);
+    color: var(--ink-soft);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.primary-button:disabled:hover
+{
+    background: var(--surface-2);
+}
+
+.snippet-howto
+{
+    margin: 0 0 12px;
+    padding-left: 22px;
+    font-size: 13px;
+    color: var(--ink-soft);
+}
+
+.snippet-howto li
+{
+    margin: 4px 0;
+}
+
+.snippet-howto code
+{
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--accent-soft);
+}
+
+.copy-button
+{
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 6px 12px;
+    font-size: 12px;
+    margin-top: 8px;
+}
+
+.copy-button:hover
+{
+    background: rgba(245, 166, 35, 0.1);
+}
+
+/*  Status section: two progress bars (upload + processing) plus a
+    one-line status detail underneath.                                */
+
+.progress-row
+{
+    display: grid;
+    grid-template-columns: 100px 1fr 50px;
+    gap: 12px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.progress-label
+{
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--ink-soft);
+    font-weight: 600;
+}
+
+.progress-bar
+{
+    height: 10px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+}
+
+.progress-fill
+{
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent-soft) 100%);
+    transition: width 0.25s ease-out;
+}
+
+.progress-pct
+{
+    text-align: right;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+}
+
+.status-detail
+{
+    margin-top: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 13px;
+    color: var(--ink-soft);
+}
+
+.job-id
+{
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    color: var(--ink-soft);
+    opacity: 0.6;
+}
+
+/*  Help block (the collapsible "What do I upload?" panel)            */
+
+.help-block
+{
+    margin-top: 20px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    padding: 0;
+}
+
+.help-block summary
+{
+    padding: 12px 16px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--accent);
+    list-style: none;
+}
+
+.help-block summary::-webkit-details-marker
+{
+    display: none;
+}
+
+.help-block summary::before
+{
+    content: '+';
+    display: inline-block;
+    margin-right: 10px;
+    color: var(--accent);
+    font-weight: 700;
+    transition: transform 0.2s;
+}
+
+.help-block[open] summary::before
+{
+    content: '\2212';
+}
+
+.help-block summary:hover
+{
+    color: var(--accent-soft);
+}
+
+.help-content
+{
+    padding: 0 16px 16px;
+    color: var(--ink-soft);
+    font-size: 13px;
+}
+
+.help-content h3
+{
+    color: var(--ink);
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 14px 0 6px;
+}
+
+.help-content h3:first-child
+{
+    margin-top: 0;
+}
+
+.help-content p
+{
+    margin: 6px 0;
+}
+
+.help-content ul
+{
+    margin: 4px 0 12px;
+    padding-left: 22px;
+}
+
+.help-content li
+{
+    margin: 3px 0;
+}
+
+.data-sources-content
+{
+    /*  Rendered server-side from LIDAR_SOURCES.md. We hide the
+        markdown's own H1 + H2 because the help block already
+        provides its title (the <summary>) and its closing
+        contribute note; showing the markdown headings on top of
+        that just makes the panel noisy.                            */
+}
+
+.data-sources-content h1,
+.data-sources-content h2
+{
+    display: none;
+}
+
+.data-sources-content p
+{
+    margin: 6px 0;
+    font-size: 13px;
+    color: var(--ink-soft);
+}
+
+.data-sources-content ul
+{
+    margin: 4px 0 12px;
+    padding-left: 22px;
+}
+
+.data-sources-content li
+{
+    margin: 3px 0;
+}
+
+.data-sources-content li strong
+{
+    color: var(--ink);
+    margin-right: 6px;
+}
+
+.data-sources-content a
+{
+    color: var(--accent);
+}
+
+.data-sources-contribute
+{
+    margin: 14px 0 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-soft);
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-style: italic;
+}
+
+.data-sources-contribute a
+{
+    color: var(--accent);
+    font-style: normal;
+}
+
+/*  /demo page: the actual Helios card mounted inside a sized wrap.
+    The card draws a 3D MapLibre scene + a chip rail + a horizontal
+    timeline chart. Its responsive logic measures container width
+    via ResizeObserver, so we hand it a wrap with deterministic
+    pixel dimensions rather than viewport-relative ones, the card
+    layout settles cleanly on first paint instead of doing a
+    second-pass reflow that occasionally collapses the timeline
+    into a column.                                                  */
+.demo-card-wrap
+{
+    width: 100%;
+    height: 720px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+}
+
+.demo-card-wrap helios-card
+{
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.demo-status
+{
+    margin: 0 0 14px;
+    color: var(--ink-soft);
+    font-style: italic;
+}
+
+.demo-status.demo-error
+{
+    color: var(--danger);
+    font-style: normal;
+}
+
+.demo-note
+{
+    margin: 14px 0 0;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-soft);
+    font-size: 12px;
+    color: var(--ink-soft);
+}
+
+.section-lead
+{
+    margin: 0 0 14px;
+    color: var(--ink-soft);
+    font-size: 13px;
+}
+
+.section-lead a
+{
+    color: var(--accent);
+}
+
+/*  Trailer video wrapper above the screenshot strip in the About
+    Helios block. preload="metadata" so the 27 MB MP4 only fetches
+    the poster + first frame until the user actually presses play.   */
+.about-trailer
+{
+    margin: 16px 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--surface-2);
+}
+
+.about-trailer video
+{
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+/*  About Helios block: 3-up image gallery (responsive) + a single
+    forward link to the detail page. Images flex on desktop, stack
+    on mobile via the existing 540 px breakpoint.                    */
+.about-gallery
+{
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 12px 0 18px;
+}
+
+.about-gallery a
+{
+    display: block;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    transition: border-color 0.15s, transform 0.15s;
+}
+
+.about-gallery a:hover
+{
+    border-color: var(--accent);
+    transform: translateY(-1px);
+}
+
+.about-gallery img
+{
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    background: var(--surface-2);
+}
+
+.about-link-row
+{
+    margin: 4px 0 0;
+    text-align: right;
+    font-size: 14px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 18px;
+    flex-wrap: wrap;
+}
+
+.about-link
+{
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.about-link:hover
+{
+    text-decoration: underline;
+}
+
+/*  TTL countdown row in the result section                            */
+
+.ttl-row
+{
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--ink-soft);
+}
+
+.countdown
+{
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    padding: 1px 6px;
+    background: var(--code-bg);
+    border-radius: 3px;
+}
+
+.countdown.countdown-warning
+{
+    color: #ef4444;
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.countdown.countdown-expired
+{
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-size: 11px;
+}
+
+/*  Result section                                                    */
+
+.result-block
+{
+    margin-bottom: 20px;
+}
+
+.result-block:last-child
+{
+    margin-bottom: 0;
+}
+
+.result-label
+{
+    display: block;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+}
+
+.result-meta
+{
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 6px;
+}
+
+.snippet
+{
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 14px;
+    margin: 0;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    line-height: 1.5;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/*  3D viewer (Three.js canvas + overlays)                            */
+
+.viewer-wrap
+{
+    position: relative;
+    width: 100%;
+    height: 540px;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+#viewer-canvas
+{
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.viewer-loading
+{
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-soft);
+    font-size: 13px;
+    background: rgba(11, 13, 16, 0.75);
+    pointer-events: none;
+}
+
+.viewer-stats
+{
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    color: var(--ink-soft);
+    background: rgba(11, 13, 16, 0.8);
+    padding: 4px 8px;
+    border-radius: 3px;
+    pointer-events: none;
+}
+
+.viewer-hint
+{
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-top: 6px;
+    font-style: italic;
+}
+
+/*  Error section                                                     */
+
+.error-message
+{
+    background: rgba(239, 68, 68, 0.08);
+    border: 1px solid rgba(239, 68, 68, 0.4);
+    border-radius: 4px;
+    padding: 12px 14px;
+    margin: 0 0 16px;
+    color: var(--danger);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 13px;
+    white-space: pre-wrap;
+}
+
+/*  Footer                                                            */
+
+/*  Footer mirrors the brand strip: full-viewport-width strip with
+    the same ambient sun animation behind, so the page bookends
+    visually. .footer-glow holds the animated layer, the inline
+    .footer-inner stays on top via z-index 1.                    */
+footer
+{
+    position: relative;
+    isolation: isolate;
+    width: 100vw;
+    left: 50%;
+    right: 50%;
+    margin-left: -50vw;
+    margin-right: -50vw;
+    text-align: center;
+    padding: 24px;
+    font-size: 12px;
+    color: var(--ink-soft);
+    border-top: 1px solid var(--border);
+    background-color: var(--surface);
+    overflow: hidden;
+}
+
+footer.footer-glow::before
+{
+    /*  Selector reuse, the animation rule above already targets
+        .footer-glow::before; this stub just ensures the pseudo-
+        element renders when the class is on the footer itself.   */
+}
+
+.footer-inner
+{
+    position: relative;
+    z-index: 1;
+}
+
+footer .sep
+{
+    margin: 0 10px;
+    color: var(--border);
+}
+
+.bmc-row
+{
+    margin-top: 14px;
+    display: flex;
+    justify-content: center;
+}
+
+.bmc-row img
+{
+    height: 22px;
+    display: block;
+}
+
+code
+{
+    background: var(--code-bg);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    color: var(--accent-soft);
+}
+
+/*  ============================================================
+    /helios-card README page
+    ------------------------------------------------------------
+    The Helios README is rendered server-side and injected into
+    `.readme-content`. These rules style the rendered markdown
+    so it reads like a long-form doc page: comfortable line
+    length, distinct headings, fenced code blocks, image fits.
+    ============================================================ */
+
+.back-row
+{
+    margin: 0 0 18px;
+    font-size: 13px;
+}
+
+.back-link
+{
+    color: var(--ink-soft);
+    border-bottom: 1px dotted var(--border);
+    padding-bottom: 1px;
+}
+
+.back-link:hover
+{
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.readme-meta
+{
+    margin: 0 0 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--ink-soft);
+    font-size: 12px;
+    letter-spacing: 0.3px;
+}
+
+.readme-meta a
+{
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.readme-loading,
+.readme-error
+{
+    color: var(--ink-soft);
+    font-style: italic;
+}
+
+.readme-error a
+{
+    color: var(--accent);
+    font-style: normal;
+}
+
+.readme-content h1,
+.readme-content h2,
+.readme-content h3
+{
+    color: var(--ink);
+    line-height: 1.25;
+}
+
+.readme-content h1
+{
+    font-size: 24px;
+    margin: 28px 0 10px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+}
+
+.readme-content h2
+{
+    font-size: 18px;
+    text-transform: none;
+    letter-spacing: 0;
+    margin: 28px 0 10px;
+    color: var(--accent);
+}
+
+.readme-content h3
+{
+    font-size: 15px;
+    margin: 22px 0 8px;
+}
+
+.readme-content p,
+.readme-content li
+{
+    line-height: 1.55;
+    color: var(--ink);
+}
+
+.readme-content ul,
+.readme-content ol
+{
+    padding-left: 22px;
+    margin: 10px 0;
+}
+
+.readme-content li
+{
+    margin: 4px 0;
+}
+
+.readme-content a
+{
+    color: var(--accent);
+}
+
+.readme-content a:hover
+{
+    text-decoration: underline;
+}
+
+.readme-content img
+{
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px;
+    margin: 12px 0;
+    border: 1px solid var(--border);
+}
+
+.readme-content pre
+{
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.5;
+    margin: 12px 0;
+}
+
+.readme-content pre code
+{
+    background: transparent;
+    padding: 0;
+    color: var(--ink);
+    font-size: inherit;
+}
+
+.readme-content blockquote
+{
+    border-left: 3px solid var(--accent);
+    padding: 4px 12px;
+    margin: 12px 0;
+    color: var(--ink-soft);
+    background: var(--surface-2);
+    border-radius: 0 6px 6px 0;
+}
+
+.readme-content hr
+{
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 22px 0;
+}
+
+.readme-content table
+{
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+    font-size: 13px;
+}
+
+.readme-content th,
+.readme-content td
+{
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: left;
+}
+
+.readme-content th
+{
+    background: var(--surface-2);
+}
+
+@media (max-width: 540px)
+{
+    main { padding: 24px 16px; }
+    h1 { font-size: 26px; }
+    .card { padding: 16px; }
+
+    /*  Compact the lang strip so it doesn't dominate the top of a
+        phone screen; flags get a touch smaller and the row hugs the
+        right edge tighter.                                          */
+    .lang-strip
+    {
+        padding: 6px 12px;
+    }
+    .lang-flag
+    {
+        font-size: 14px;
+        padding: 2px 4px;
+    }
+
+    /*  Mode toggle: on phones a 50/50 pill with 14 px text + 20 px
+        side padding eats half the screen. Stack the two options
+        vertically and let each one fill the panel width.            */
+    .mode-tabs
+    {
+        flex-direction: column;
+        border-radius: 14px;
+        padding: 4px;
+    }
+    .mode-tab
+    {
+        padding: 10px 14px;
+        font-size: 13px;
+        border-radius: 10px;
+    }
+
+    /*  About Helios gallery: stack the three preview images on
+        narrow screens so each one stays readable instead of being
+        crammed into a third of the viewport width.                 */
+    .about-gallery
+    {
+        grid-template-columns: 1fr;
+    }
+    .about-link-row
+    {
+        text-align: center;
+    }
+}

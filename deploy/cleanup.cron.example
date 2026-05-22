@@ -1,0 +1,18 @@
+# /etc/cron.d/helios-lidar-cleanup
+#
+# Backstop sweep in case the in-process threading.Timer that normally
+# deletes the COG at COG_TTL_SECONDS (10 min after job done) ever
+# misses, on a crash, a worker restart, an exception, etc. We also
+# clean up stale job inputs daily.
+#
+#   /var/helios-lidar/jobs/    inputs older than  1 day  go away
+#   /var/helios-lidar/output/  COGs   older than 30 min go away
+#
+# The find command uses -mindepth 1 so the directory itself is not
+# touched. -mtime is in days; -mmin is in minutes.
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+15 3 * * * helios-lidar find /var/helios-lidar/jobs   -mindepth 1 -mtime +1   -delete > /dev/null 2>&1
+*/5 * * * * helios-lidar find /var/helios-lidar/output -mindepth 1 -mmin  +30  -delete > /dev/null 2>&1

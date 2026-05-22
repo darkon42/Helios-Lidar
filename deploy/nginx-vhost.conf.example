@@ -1,0 +1,64 @@
+# /etc/nginx/sites-available/helios-lidar
+#
+# HTTP-only vhost for helios-lidar.org. Drop this file in
+# /etc/nginx/sites-available/helios-lidar, symlink it into
+# /etc/nginx/sites-enabled/, then run:
+#
+#   sudo certbot --nginx --redirect -d helios-lidar.org -d www.helios-lidar.org
+#
+# Certbot detects the existing port-80 server block, adds a matching
+# port-443 block with the right ssl_certificate directives, and
+# converts the original port-80 block into a permanent HTTPS redirect.
+# Booting straight to HTTPS in this template would fail `nginx -t`
+# because the certificate doesn't exist on a fresh host yet; deferring
+# to certbot is the official Let's Encrypt workflow.
+#
+# After certbot has run once, the renew job (installed automatically)
+# keeps the cert fresh; this template stays untouched.
+
+server
+{
+    listen 80;
+    listen [::]:80;
+    server_name helios-lidar.org www.helios-lidar.org;
+
+    # 4 GB cap matches HELIOS_LIDAR_MAX_UPLOAD_BYTES in app/config.py.
+    client_max_body_size 4G;
+
+    # Static frontend (single-page upload UI).
+    location = /
+    {
+        root /var/helios-lidar/frontend;
+        try_files /index.html =404;
+    }
+    location /static/
+    {
+        alias /var/helios-lidar/frontend/;
+        expires 1h;
+    }
+
+    # Generated COGs. Served with CORS on so the Helios card can range-
+    # fetch them from a different origin (the user's HA dashboard).
+    location /output/
+    {
+        alias /var/helios-lidar/output/;
+        add_header Access-Control-Allow-Origin *;
+        add_header Access-Control-Allow-Methods "GET, HEAD, OPTIONS";
+        add_header Access-Control-Allow-Headers "Range";
+        add_header Access-Control-Expose-Headers "Content-Length, Content-Range";
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    # API + everything else proxied to FastAPI on 127.0.0.1:8000.
+    location /
+    {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_request_buffering off;
+        proxy_read_timeout 300s;
+    }
+}

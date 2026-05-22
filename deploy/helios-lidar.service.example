@@ -1,0 +1,71 @@
+# /etc/systemd/system/helios-lidar.service
+#
+# systemd unit running the FastAPI app under uvicorn, bound to
+# 127.0.0.1:8000 so it sits behind the nginx vhost. Runs as the
+# dedicated `helios-lidar` system user with its home set to the
+# code directory, so file writes default into /var/helios-lidar
+# rather than someone's home.
+#
+# Install:
+#   sudo cp deploy/helios-lidar.service.example /etc/systemd/system/helios-lidar.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now helios-lidar
+#
+# Logs:
+#   journalctl -u helios-lidar -f
+
+[Unit]
+Description=Helios-Lidar pipeline (FastAPI)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=helios-lidar
+Group=helios-lidar
+WorkingDirectory=/var/helios-lidar/app
+Environment=PATH=/var/helios-lidar/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=HELIOS_LIDAR_PUBLIC_BASE_URL=https://helios-lidar.org
+Environment=HELIOS_LIDAR_JOBS_DIR=/var/helios-lidar/jobs
+Environment=HELIOS_LIDAR_OUTPUT_DIR=/var/helios-lidar/output
+# Cap scipy / numpy OpenMP threads so the cKDTree query in
+# pipeline.laz_to_ndsm stays parallel without saturating the box.
+# 4 matches the current 4-vCPU VPS. Required because we run uvicorn
+# with --workers 1 below: leaving OMP free to use all cores is
+# actually what we want with a single worker.
+Environment=OMP_NUM_THREADS=4
+ExecStart=/var/helios-lidar/.venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 1 \
+    --proxy-headers \
+    --forwarded-allow-ips 127.0.0.1
+# Single uvicorn worker on purpose: this service is sized for one
+# upload at a time (each job pegs an OpenMP-parallel scipy KDTree
+# pass). The multi-worker setup we shipped first deadlocked the
+# BackgroundTask threadpool the moment scipy spun up its OMP team
+# in the spawned worker, because Python multiprocessing.spawn isn't
+# fork-safe with inherited OpenMP state. Switching to one worker
+# sidesteps the issue entirely; if HTTP concurrency ever matters
+# we'd move the heavy compute to a real queue (RQ / arq) anyway.
+Restart=on-failure
+RestartSec=5s
+
+# Hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/helios-lidar
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+[Install]
+WantedBy=multi-user.target

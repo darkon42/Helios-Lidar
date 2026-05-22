@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Helios-Lidar , LiDAR to nDSM converter</title>
+  <link rel="icon" type="image/png" href="/static/helios-icon.png">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="lang-strip">
+    <span class="site-version" aria-label="Site version">v1.6.2</span>
+    <div class="lang-switcher" id="lang-switcher" aria-label="Language"></div>
+  </div>
+  <main>
+    <header>
+      <div class="brand-banner">
+        <img src="/static/helios-icon.png" alt="Helios" class="brand-icon">
+      </div>
+      <div class="brand-strip">
+        <span class="brand-strip-text" data-i18n="brandStrip">
+          Convert LiDAR data for the
+          <a href="/helios-card">Helios card</a>
+          for
+          <a href="https://www.home-assistant.io/" target="_blank" rel="noopener">Home Assistant</a>
+        </span>
+      </div>
+      <h1>Helios-Lidar</h1>
+      <p class="lede" data-i18n="lede">
+        From raw LiDAR to the nDSM file the
+        <a href="/helios-card">Helios card</a> needs, with the YAML
+        block to paste into your configuration.
+      </p>
+    </header>
+
+    <section class="card" id="about-helios-section">
+      <h2 data-i18n="aboutH2">About the Helios card</h2>
+      <p class="section-lead" data-i18n="aboutLead">
+        Helios is a Lovelace card for Home Assistant that paints live solar
+        conditions on a 3D map of your home: the sun arc, cloud cover, real
+        cast shadows from buildings and trees, an optional PV production
+        overlay with a self-learning forecast, and a scrubbable 5-day
+        timeline. This site exists to give that card the LiDAR data it
+        needs in regions where the built-in providers don't reach yet.
+      </p>
+      <div class="about-trailer">
+        <video
+          controls
+          playsinline
+          preload="metadata"
+          poster="https://raw.githubusercontent.com/ReikanYsora/Helios/main/images/preview_01.png">
+          <source src="https://raw.githubusercontent.com/ReikanYsora/Helios/main/images/helios-1.6.0.mp4" type="video/mp4">
+        </video>
+      </div>
+      <div class="about-gallery">
+        <a href="https://raw.githubusercontent.com/ReikanYsora/Helios/main/images/preview_01.png" target="_blank" rel="noopener">
+          <img src="https://raw.githubusercontent.com/ReikanYsora/Helios/main/images/preview_01.png" alt="Helios card preview 1" loading="lazy">
+        </a>
+        <a href="https://raw.githubusercontent.com/ReikanYsora/Helios/main/images/preview_02.png" target="_blank" rel="noopener">
+          <img src="https://raw.githubusercontent.com/ReikanYsora/Helios/main/images/preview_02.png" alt="Helios card preview 2" loading="lazy">
+        </a>
+        <a href="https://raw.githubusercontent.com/ReikanYsora/Helios/main/images/preview_03.png" target="_blank" rel="noopener">
+          <img src="https://raw.githubusercontent.com/ReikanYsora/Helios/main/images/preview_03.png" alt="Helios card preview 3" loading="lazy">
+        </a>
+      </div>
+      <p class="about-link-row">
+        <a href="/helios-card" class="about-link" data-i18n="aboutLink">Learn more about the Helios card &rarr;</a>
+      </p>
+    </section>
+
+    <section class="card" id="primer-section">
+      <h2 data-i18n="primerH2">First time here? Read this.</h2>
+      <p class="section-lead" data-i18n="primerLead">
+        Helios paints shadows from real buildings and trees around your
+        home. To do that it needs a small file describing how tall every
+        building and tree is. This page turns raw LiDAR data (which comes
+        in formats Helios can't read directly) into that file.
+      </p>
+
+      <details class="help-block" id="help-data" open>
+        <summary data-i18n="helpGlossary">Quick glossary of the words on this page</summary>
+        <div class="help-content">
+          <dl class="glossary">
+            <dt data-i18n="glossaryLidarTerm">LiDAR</dt>
+            <dd data-i18n="glossaryLidarDef">
+              Light Detection And Ranging. A laser scanner mounted on a
+              plane or a satellite shoots pulses at the ground, measures
+              how long they take to bounce back, and reconstructs the 3D
+              shape of every surface below (ground, buildings, trees).
+              National mapping agencies fly LiDAR every few years and
+              publish the result as free open data.
+            </dd>
+
+            <dt data-i18n="glossaryLasTerm">LAS / LAZ</dt>
+            <dd data-i18n="glossaryLasDef">
+              The raw output of a LiDAR scan, as a list of points
+              (millions of them) with XYZ positions and a tag saying
+              what each one is (ground, building, tree, etc.). LAS is
+              the uncompressed format, LAZ is the same thing zipped, ~10x
+              smaller. National LiDAR programmes hand out LAZ by default.
+              <strong>Upload mode "LAZ / LAS"</strong> on this page
+              expects one of those files.
+            </dd>
+
+            <dt data-i18n="glossaryDsmTerm">DSM (Digital Surface Model)</dt>
+            <dd data-i18n="glossaryDsmDef">
+              A 2D grid (saved as a <code>.tif</code> GeoTIFF image)
+              where every pixel holds the height of the tallest thing at
+              that spot, roof of a building, tip of a tree, or bare
+              ground if nothing's there.
+            </dd>
+
+            <dt data-i18n="glossaryDtmTerm">DTM (Digital Terrain Model)</dt>
+            <dd data-i18n="glossaryDtmDef">
+              Same kind of grid as a DSM, but it skips everything above
+              ground level, the cells hold only the bare-earth elevation.
+              <strong>Upload mode "DSM + DTM"</strong> expects both files
+              for the same area.
+            </dd>
+
+            <dt data-i18n="glossaryNdsmTerm">nDSM (normalised DSM)</dt>
+            <dd data-i18n="glossaryNdsmDef">
+              <strong>This is the data Helios needs.</strong> It's just
+              DSM minus DTM: each cell holds <em>how tall</em> the
+              building or tree at that spot is, with zero meaning "no building
+              here". This page computes the nDSM for you from either
+              upload mode and ships it to you as a COG (see below): one
+              <code>.tif</code> file, nDSM content inside.
+            </dd>
+
+            <dt data-i18n="glossaryCogTerm">COG (Cloud-Optimized GeoTIFF)</dt>
+            <dd data-i18n="glossaryCogDef">
+              A file format, not a different kind of data. A COG is a
+              regular GeoTIFF stored in a way that lets the Helios card
+              fetch only the pixels around your home (not the whole
+              file). <strong>The <code>.tif</code> you download from
+              this page is an nDSM stored as a COG</strong>, that's the
+              one file Helios reads.
+            </dd>
+          </dl>
+        </div>
+      </details>
+
+      <details class="help-block">
+        <summary data-i18n="helpDownload">Where do I download LiDAR data for my country?</summary>
+        <div class="help-content">
+          <div class="data-sources-content" id="data-sources-content" data-i18n="dataSourcesLoading">
+            Loading the country list...
+          </div>
+          <p class="data-sources-contribute" data-i18n="dataSourcesContribute">
+            This list is community-maintained. If your country is missing,
+            edit
+            <a href="https://github.com/ReikanYsora/Helios-Lidar/blob/main/LIDAR_SOURCES.md" target="_blank" rel="noopener">LIDAR_SOURCES.md</a>
+            on GitHub and open a pull request, the
+            <a href="https://github.com/ReikanYsora/Helios-Lidar/blob/main/.github/PULL_REQUEST_TEMPLATE.md" target="_blank" rel="noopener">PR template</a>
+            walks you through the format and asks for a screenshot of a
+            successful conversion as proof the source actually feeds the
+            pipeline.
+          </p>
+        </div>
+      </details>
+    </section>
+
+    <section class="card" id="upload-section">
+      <h2 data-i18n="uploadH2">1. Upload your data</h2>
+
+      <div class="mode-tabs" role="tablist">
+        <button type="button" class="mode-tab active" role="tab" data-mode="raster" data-i18n="modeRaster">DSM + DTM (two TIFF files)</button>
+        <button type="button" class="mode-tab" role="tab" data-mode="laz" data-i18n="modeLaz">LAZ / LAS (one point cloud)</button>
+      </div>
+
+      <form id="upload-form">
+        <div class="mode-panel" id="raster-panel">
+          <label class="file-field" for="dsm-input">
+            <span class="file-label" data-i18n="dsmLabel">Digital Surface Model (DSM)</span>
+            <span class="file-hint" data-i18n="dsmHint">The "everything on the surface" GeoTIFF, includes buildings and trees. Format: <code>.tif</code></span>
+            <span class="file-picker-row">
+              <span class="file-button" data-i18n="chooseFile">Choose file</span>
+              <span class="file-selected" id="dsm-selected" data-i18n="noFile">no file selected</span>
+            </span>
+            <input type="file" id="dsm-input" name="dsm" accept=".tif,.tiff" class="file-input-hidden">
+          </label>
+
+          <label class="file-field" for="dtm-input">
+            <span class="file-label" data-i18n="dtmLabel">Digital Terrain Model (DTM)</span>
+            <span class="file-hint" data-i18n="dtmHint">The "bare ground only" GeoTIFF, same area + same grid as the DSM. Format: <code>.tif</code></span>
+            <span class="file-picker-row">
+              <span class="file-button" data-i18n="chooseFile">Choose file</span>
+              <span class="file-selected" id="dtm-selected" data-i18n="noFile">no file selected</span>
+            </span>
+            <input type="file" id="dtm-input" name="dtm" accept=".tif,.tiff" class="file-input-hidden">
+          </label>
+        </div>
+
+        <div class="mode-panel hidden" id="laz-panel">
+          <label class="file-field" for="laz-input">
+            <span class="file-label" data-i18n="lazLabel">Point cloud (LAS or LAZ)</span>
+            <span class="file-hint" data-i18n="lazHint">
+              The raw LiDAR file. National LiDAR programmes (IGN HD France,
+              swissSURFACE3D, AHN Netherlands, etc.) ship classified LAZ
+              files this pipeline reads directly.
+            </span>
+            <span class="file-picker-row">
+              <span class="file-button" data-i18n="chooseFile">Choose file</span>
+              <span class="file-selected" id="laz-selected" data-i18n="noFile">no file selected</span>
+            </span>
+            <input type="file" id="laz-input" name="laz" accept=".las,.laz" class="file-input-hidden">
+          </label>
+        </div>
+
+        <div class="action-row">
+          <button type="submit" id="submit-button" data-i18n="processButton">Process my file</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card hidden" id="status-section">
+      <h2 data-i18n="workingH2">2. Working...</h2>
+
+      <div class="progress-row">
+        <label class="progress-label" data-i18n="uploadLabel">Upload</label>
+        <div class="progress-bar"><div class="progress-fill" id="upload-fill"></div></div>
+        <span class="progress-pct" id="upload-pct">0%</span>
+      </div>
+
+      <div class="progress-row">
+        <label class="progress-label" data-i18n="conversionLabel">Conversion</label>
+        <div class="progress-bar"><div class="progress-fill" id="process-fill"></div></div>
+        <span class="progress-pct" id="process-pct">0%</span>
+      </div>
+
+      <div class="status-detail">
+        <span id="status-message" data-i18n="queued">Queued...</span>
+        <span class="job-id" id="status-job-id"></span>
+      </div>
+    </section>
+
+    <section class="card hidden" id="result-section">
+      <h2 data-i18n="resultH2">3. Your file is ready</h2>
+
+      <div class="result-block">
+        <div class="action-row">
+          <button type="button" class="primary-button" id="download-button" data-i18n="downloadButton">Download</button>
+        </div>
+        <div class="result-meta" id="result-meta"></div>
+        <div class="ttl-row">
+          <span data-i18n="autoDeletedPrefix">Auto-deleted from our server in</span>
+          <strong id="countdown" class="countdown">5:00</strong>.
+          <span data-i18n="autoDeletedHint">The download starts automatically, but if your browser blocked it, click the button above before the timer runs out.</span>
+        </div>
+      </div>
+
+      <div class="result-block">
+        <label class="result-label" data-i18n="preview3D">3D preview</label>
+        <div class="viewer-wrap">
+          <canvas id="viewer-canvas"></canvas>
+          <div class="viewer-loading" id="viewer-loading" data-i18n="viewerLoading">Loading preview...</div>
+          <div class="viewer-stats" id="viewer-stats"></div>
+        </div>
+        <div class="viewer-hint" data-i18n="viewerHint">
+          Drag to orbit, scroll to zoom, right-click drag to pan. Matches the
+          Helios card's LiDAR View overlay.
+        </div>
+      </div>
+
+      <div class="result-block">
+        <label class="result-label" data-i18n="dropIntoHelios">Drop into your Helios card</label>
+        <ol class="snippet-howto">
+          <li data-i18n="howto1">Move the downloaded <code>.tif</code> file into
+            <code>config/www/helios/</code> on your Home Assistant
+            server (create the folder if it doesn't exist).</li>
+          <li data-i18n="howto2">Copy the block below into your Helios card's YAML config.</li>
+          <li data-i18n="howto3">Reload the dashboard. Real LiDAR shadows should appear
+            around your home.</li>
+        </ol>
+        <pre class="snippet" id="result-snippet"></pre>
+        <div class="action-row">
+          <button type="button" class="copy-button" id="copy-snippet" data-i18n="copyButton">Copy to clipboard</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card hidden" id="error-section">
+      <h2 data-i18n="errorH2">Something went wrong</h2>
+      <div class="error-message" id="error-message"></div>
+      <button type="button" class="secondary-button" id="error-restart" data-i18n="startOver">Start over</button>
+    </section>
+
+    <section class="card explainer">
+      <h2 data-i18n="explainerH2">What this tool does</h2>
+      <p data-i18n="explainer1">
+        In one sentence: it takes raw LiDAR data and turns it into a small
+        file the Helios card can read to draw real shadows from buildings and
+        trees around your home.
+      </p>
+      <p data-i18n="explainer2">
+        In a bit more detail: LiDAR is a scan that records the height of
+        every surface on the ground (terrain, buildings, trees). National
+        agencies publish these scans as public open data, but in formats
+        Helios can't consume directly. This pipeline runs the GIS conversion
+        server-side (point cloud or DSM/DTM in -> height-above-ground COG
+        out) so you don't have to install QGIS, GDAL or PDAL on your
+        machine. You upload, wait a minute, download.
+      </p>
+      <p class="hosting-note" data-i18n="hostingNote">
+        Helios-Lidar runs on a small VPS I rent from OVH and pay for
+        myself. There are no ads on this page, none planned, and the
+        service is free for everyone. I want to keep it as simple as
+        possible. If you find the tool useful, the Buy Me a Coffee
+        button at the bottom helps keep the VPS bill covered. Thanks!
+      </p>
+      <p class="credits" data-i18n="credits">
+        The bring-your-own local-nDSM provider in the Helios card and the
+        Python preparation toolchain this pipeline is built on top of were
+        contributed by <a href="https://github.com/jourdant" target="_blank" rel="noopener">@jourdant</a>
+        in <a href="https://github.com/ReikanYsora/Helios/pull/5" target="_blank" rel="noopener">PR #5</a>
+        and <a href="https://github.com/ReikanYsora/Helios/pull/11" target="_blank" rel="noopener">PR #11</a>.
+        Helios-Lidar is the web wrapper that exposes that toolchain.
+      </p>
+    </section>
+  </main>
+
+  <footer class="footer-glow">
+    <div class="footer-inner">
+      <a href="https://github.com/ReikanYsora/Helios-Lidar" target="_blank" rel="noopener">Source</a>
+      <span class="sep">,</span>
+      <a href="/helios-card">Helios card</a>
+      <span class="sep">,</span>
+      <a href="mailto:jcremoux@gmail.com" data-i18n="contactMe">Contact me</a>
+      <div class="bmc-row">
+        <a href="https://www.buymeacoffee.com/reikanysora" target="_blank" rel="noopener">
+          <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Donate-orange?style=flat-square&logo=buy-me-a-coffee" alt="Buy Me a Coffee">
+        </a>
+      </div>
+    </div>
+  </footer>
+
+  <script type="module" src="/static/bg-pointcloud.js"></script>
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>
